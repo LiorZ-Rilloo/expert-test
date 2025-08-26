@@ -45,30 +45,11 @@ try {
   console.error('Error calling email function:', emailError);
 }
 
-      // Send confirmation email
-      try {
-        const { error: emailError } = await supabase.functions.invoke('send-confirmation', {
-          body: {
-            name: formData.name,
-            email: formData.email,
-            industry: formData.industry,
-          },
-        });
-
-        if (emailError) {
-          console.error('Error sending confirmation email:', emailError);
-        } else {
-          console.log('Confirmation email sent successfully');
-        }
-      } catch (emailError) {
-        console.error('Error calling email function:', emailError);
-      }
-
       const lead = {
         name: formData.name,
         email: formData.email,
         industry: formData.industry,
-        submitted_at: new Date().toISOString(), 
+        submitted_at: new Date().toISOString(),
       };
       setLeads([...leads, lead]);
       setSubmitted(true);

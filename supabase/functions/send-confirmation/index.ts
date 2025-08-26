@@ -1,8 +1,18 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
+// @ts-ignore
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+// @ts-ignore
 import { Resend } from "npm:resend@2.0.0";
 
-const resend = new Resend(Deno.env.get("RESEND_PUBLIC_KEY") || "invalid_key");
+// @ts-ignore
+const RESEND_PUBLIC_KEY = Deno.env.get("RESEND_PUBLIC_KEY");
+if (!RESEND_PUBLIC_KEY) throw new Error("RESEND_PUBLIC_KEY is not set in environment variables");
+
+// @ts-ignore
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not set in environment variables");
+
+const resend = new Resend(RESEND_PUBLIC_KEY);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,12 +26,29 @@ interface ConfirmationEmailRequest {
   industry: string;
 }
 
+function sanitizeOutput(text: string)  {
+  if (!text) return "";
+  // Remove all HTML tags except <br>
+  const withoutTags = text.replace(/<(?!br\s*\/?)[^>]+>/gi, "");
+  // Encode special characters
+  return withoutTags
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+}
+
+function getFallbackEmailContent(name: string, industry: string): string {
+  return `Hi ${name}! 🚀 Welcome to our innovation community! We're thrilled to have someone from the ${industry} industry join us. \nGet ready to discover cutting-edge insights, connect with fellow innovators, and unlock new opportunities that will transform how you work. \nThis is just the beginning of your innovation journey!`;
+}
+
 const generatePersonalizedContent = async (name: string, industry: string) => {
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -59,10 +86,17 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { name, email, industry }: ConfirmationEmailRequest = await req.json();
 
+    if (!name || typeof name !== "string" || !email || typeof email !== "string" || !industry || typeof industry !== "string") {
+      throw new Error("Missing or invalid required fields: name, email, or industry");
+    }
     console.log(`Generating personalized email for ${name} from ${industry} industry`);
 
     // Generate personalized content using AI
-    const personalizedContent = await generatePersonalizedContent(name, industry);
+    let personalizedContent = sanitizeOutput(await generatePersonalizedContent(name, industry));
+
+    if (!personalizedContent) {
+        personalizedContent = getFallbackEmailContent(name, industry);
+    }
 
     console.log(`Generated content: ${personalizedContent}`);
 
